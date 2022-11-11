@@ -101,7 +101,10 @@ func (wrap *ageX25519Wrap) EncryptAllFileInDirByPubKeyWithPrefixBeforeBase64Then
 	var fileBody []byte
 	var filePath string
 	var encryptData []byte
-	var writer = rotate.RotateOnWrite{BackupDir: backupDir}
+	var writer = rotate.RotateOnWrite{
+		BackupDir: backupDir,
+		MaxSize:   100, // default is 5 megabytes
+	}
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -141,7 +144,10 @@ func (wrap *ageX25519Wrap) DecryptAllFileInDirByPrivateKeyWithPrefixAfterBase64T
 	var fileBody []byte
 	var filePath string
 	var decryptData []byte
-	var writer = rotate.RotateOnWrite{BackupDir: backupDir}
+	var writer = rotate.RotateOnWrite{
+		BackupDir: backupDir,
+		MaxSize:   100, // default is 5 megabytes
+	}
 	for _, f := range files {
 		if f.IsDir() {
 			continue
