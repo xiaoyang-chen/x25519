@@ -17,13 +17,13 @@ type AgeX25519 interface {
 	GeneratePubKeyAndPrivateKey(pubPrefix, privatePrefix string) (pub, private string, err error)
 	EncryptByPubKeyWithPrefix(in []byte, publicKey, prefix string) (out []byte, err error)
 	DecryptByPrivateKeyWithPrefix(in []byte, privateKey, prefix string) (out []byte, err error)
-	// EncryptByPubKeyWithPrefixBeforeBase64 encrypt and then base64 encode, if encoding is nil, it will use base64.RawStdEncoding, this method is usually used to handle messy code
+	// EncryptByPubKeyWithPrefixBeforeBase64 encrypt and then base64 encode, if encoding is nil, it will use base64.StdEncoding, this method is usually used to handle messy code
 	EncryptByPubKeyWithPrefixBeforeBase64(in []byte, publicKey, prefix string, encoding *base64.Encoding) (out []byte, err error)
-	// DecryptByPrivateKeyWithPrefixAfterBase64 base64 decode and then decrypt, if encoding is nil, it will use base64.RawStdEncoding, this method is usually used to handle messy code
+	// DecryptByPrivateKeyWithPrefixAfterBase64 base64 decode and then decrypt, if encoding is nil, it will use base64.StdEncoding or base64.RawStdEncoding, this method is usually used to handle messy code
 	DecryptByPrivateKeyWithPrefixAfterBase64(in []byte, privateKey, prefix string, encoding *base64.Encoding) (out []byte, err error)
-	// EncryptAllFileInDirByPubKeyWithPrefixBeforeBase64ThenRotateWrite encrypt file and base64 encode and rotate write in dir one by one, if encoding is nil, it will use base64.RawStdEncoding
+	// EncryptAllFileInDirByPubKeyWithPrefixBeforeBase64ThenRotateWrite encrypt file and base64 encode and rotate write in dir one by one, if encoding is nil, it will use base64.StdEncoding
 	EncryptAllFileInDirByPubKeyWithPrefixBeforeBase64ThenRotateWrite(dir, backupDir, publicKey, prefix string, encoding *base64.Encoding) (err error)
-	// DecryptAllFileInDirByPrivateKeyWithPrefixAfterBase64ThenRotateWrite base64 decode and decrypt file and rotate write in dir one by one, if encoding is nil, it will use base64.RawStdEncoding
+	// DecryptAllFileInDirByPrivateKeyWithPrefixAfterBase64ThenRotateWrite base64 decode and decrypt file and rotate write in dir one by one, if encoding is nil, it will use base64.StdEncoding or base64.RawStdEncoding
 	DecryptAllFileInDirByPrivateKeyWithPrefixAfterBase64ThenRotateWrite(dir, backupDir, privateKey, prefix string, encoding *base64.Encoding) (err error)
 }
 
@@ -62,7 +62,7 @@ func (*ageX25519Wrap) EncryptByPubKeyWithPrefixBeforeBase64(in []byte, publicKey
 
 	if out, err = age.EncryptByX25519PublicKey(in, publicKey, prefix); err == nil {
 		if encoding == nil {
-			encoding = base64.RawStdEncoding
+			encoding = base64.StdEncoding // use std first, base64.RawStdEncoding will not add padding "="
 		}
 		var base64Out = make([]byte, encoding.EncodedLen(len(out)))
 		encoding.Encode(base64Out, out)
@@ -73,10 +73,15 @@ func (*ageX25519Wrap) EncryptByPubKeyWithPrefixBeforeBase64(in []byte, publicKey
 
 func (*ageX25519Wrap) DecryptByPrivateKeyWithPrefixAfterBase64(in []byte, privateKey, prefix string, encoding *base64.Encoding) (out []byte, err error) {
 
+	var lenIn = len(in)
 	if encoding == nil {
-		encoding = base64.RawStdEncoding
+		if lenIn&0b11 == 0 { // lenIn%4 == 0
+			encoding = base64.StdEncoding
+		} else {
+			encoding = base64.RawStdEncoding
+		}
 	}
-	var base64In = make([]byte, encoding.DecodedLen(len(in)))
+	var base64In = make([]byte, encoding.DecodedLen(lenIn))
 	var n int
 	if n, err = encoding.Decode(base64In, in); err != nil {
 		err = errors.Wrap(err, "base64 decode fail")
@@ -88,9 +93,6 @@ func (*ageX25519Wrap) DecryptByPrivateKeyWithPrefixAfterBase64(in []byte, privat
 
 func (wrap *ageX25519Wrap) EncryptAllFileInDirByPubKeyWithPrefixBeforeBase64ThenRotateWrite(dir, backupDir, publicKey, prefix string, encoding *base64.Encoding) (err error) {
 
-	if encoding == nil {
-		encoding = base64.RawStdEncoding
-	}
 	// get all file in dir
 	var files []fs.DirEntry
 	if files, err = os.ReadDir(dir); err != nil {
@@ -131,9 +133,6 @@ func (wrap *ageX25519Wrap) EncryptAllFileInDirByPubKeyWithPrefixBeforeBase64Then
 
 func (wrap *ageX25519Wrap) DecryptAllFileInDirByPrivateKeyWithPrefixAfterBase64ThenRotateWrite(dir, backupDir, privateKey, prefix string, encoding *base64.Encoding) (err error) {
 
-	if encoding == nil {
-		encoding = base64.RawStdEncoding
-	}
 	// get all file in dir
 	var files []fs.DirEntry
 	if files, err = os.ReadDir(dir); err != nil {
